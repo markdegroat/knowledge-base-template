@@ -1,0 +1,29 @@
+# OS generated
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Obsidian workspace settings (per user; the vault itself is plain Markdown)
+.obsidian/
+
+# Claude Code per-user files (machine-local, not shared)
+.claude/settings.local.json
+.claude/projects/
+
+# Git worktrees for parallel sessions (CLAUDE.md, section 8)
+.claude/worktrees/
+
+# Python build artifacts
+__pycache__/
+*.pyc
