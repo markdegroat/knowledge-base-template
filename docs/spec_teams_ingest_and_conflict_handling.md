@@ -133,9 +133,9 @@ These rules run on every ingestion: meetings, and YouTube videos where they appl
 
    | Result | Applies to | Flag |
    |---|---|---|
-   | **Conflict** | Decision/claim | It contradicts an existing note: *"Decided X [00:12:30]; [[01_concepts/foo]] says Y."* |
-   | **Supersedes** | Decision | It reverses an earlier meeting's decision: *"Reverses decision in [[99_references/meetings/...]]."* |
-   | **Answered by KB** | Open question | The KB already has the answer: *"Raised [00:20:05]; [[03_techniques/bar]] covers this."* |
+   | **Conflict** | Decision/claim | It contradicts an existing note: *"Decided X [00:12:30]; `[[01_concepts/foo]]` says Y."* |
+   | **Supersedes** | Decision | It reverses an earlier meeting's decision: *"Reverses decision in `[[99_references/meetings/...]]`."* |
+   | **Answered by KB** | Open question | The KB already has the answer: *"Raised [00:20:05]; `[[03_techniques/bar]]` covers this."* |
    | **Resolves** | Decision | It answers an open question left in an earlier meeting note |
    | **New** | Any | Nothing in the KB covers it. Not flagged; listed as new information. |
 
