@@ -5,7 +5,9 @@
 
 ## 1. Context and Goals
 
-This repository is a **knowledge base template**. People clone it and run their own KB **locally**. The tooling (agents, skills, scripts, templates) lives in git; each adopter's notes and transcripts live on their machine. There is no shared multi-user vault.
+This repository is a **knowledge base template**. Each adopter copies it and starts a fresh history (`rm -rf .git && git init`, per the README), so **their KB is their own git repo**. It is local by default and pushed only to a remote they choose. Notes, templates and `index.md` are committed in that repo as usual. **Raw transcripts are the one exception**: they stay on the adopter's machine, gitignored (section 4.2).
+
+The feature is designed for a **personal vault** and is **opt-in**, like `youtube_videos/`: adopters who don't want it delete the meetings folder, agent and skill (README "Adjust the buckets" step). A team vault can use it, but see the caveats in section 8.
 
 **Goals:**
 
@@ -21,7 +23,7 @@ This repository is a **knowledge base template**. People clone it and run their 
 
 ### Non-goals
 
-- A shared, multi-user vault or deduplication across users.
+- Team-vault features: deduplicating the same meeting ingested by several people, or per-note access control.
 - Committing raw transcripts or recordings to git.
 - Deciding how adopters manage tasks downstream. The tool parses action items into the note; what happens to them next is the adopter's choice.
 - Real-time or in-meeting processing.
@@ -69,10 +71,13 @@ The split matters because auto mode only needs the **organizer's** delegated Gra
 
 ### 4.2 Transcript handling
 
-- Raw transcripts go in a **gitignored** drop folder: `_inbox/teams_raw/`.
+- Raw transcripts go in a **gitignored** top-level folder: `_transcripts/teams/`.
+  - **Not under `_inbox/`.** `_inbox/` belongs to `iterate-raw-note`, and `decompose-inbox-to-concepts` reads every inbox note, so transcripts there would be picked up as notes. `_transcripts/` sits outside every agent's scope except the ingest agent (read) and the fetcher (write).
+  - **A deliberate exception.** `99_references/research_papers/` commits the raw PDF next to its note. Meeting transcripts are kept out of git instead, because they are internal and may contain sensitive data.
+  - The auto-mode state file (already-ingested meeting IDs) lives here too: `_transcripts/.state.json`.
 - They are **kept after ingestion**, so the user or Claude can check citations later.
 - `parse_teams_transcript.py` normalizes `.vtt` and `.docx` to `[HH:MM:SS] Speaker: text`, matching the YouTube `--timestamps` shape. It uses the standard library, plus `python-docx` for `.docx`.
-- Each note's frontmatter records `transcript_file:` (a path in the drop folder) so verification knows where to look.
+- Each note's frontmatter records `transcript_file:` (a path under `_transcripts/`) so verification knows where to look.
 
 ### 4.3 Metadata rules
 
@@ -103,7 +108,7 @@ attendees: ["[Name]"]
 series: ""                    # series slug if grouped (section 6), else empty
 meeting_id: ""                # Graph onlineMeeting ID (auto mode); prevents re-ingestion
 recording_url: "[Teams/Stream link]"
-transcript_file: "_inbox/teams_raw/[file]"
+transcript_file: "_transcripts/teams/[file]"
 date_ingested: YYYY-MM-DD
 related: []
 conflicts: []                 # notes whose claims this meeting contradicts
@@ -177,7 +182,7 @@ When a meeting is ingested, the agent checks whether it belongs with others:
   - Create `99_references/meetings/<series_slug>/`.
   - Move the member notes into it and **update all incoming wiki-links** (`CLAUDE.md` refactoring rule).
   - Create a series hub note, `<series_slug>/series_overview.md`, from `TEMPLATE_meeting_series.md`.
-  - Set `series:` in each member's frontmatter.
+  - Set `series:` and `index: false` in each member's frontmatter (section 6.4).
 - Once a series exists, future meetings that match it are filed into it directly and the hub note is updated.
 
 ### 6.3 Series hub note (`TEMPLATE_meeting_series.md`)
@@ -188,6 +193,19 @@ When a meeting is ingested, the agent checks whether it belongs with others:
 - **Meetings**: a list linking to each member note.
 
 The hub is the first note checked in section 5.1 step 2 for a meeting in the series. That's how "conflicts with previous meetings" gets caught reliably.
+
+### 6.4 Keeping the index within its design limit
+
+ADR-0002 sizes `index.md` for "up to a few hundred notes". At around 10 meetings a week, meeting notes alone would pass 500 in a year. Today `build_index.py` indexes everything under `99_references/` and skips only `TEMPLATE*` files (line 128), so it would also index every series member and the digests.
+
+**Change to `build_index.py`:**
+
+- Skip any folder whose name starts with `_` inside a bucket. This excludes `_digests/`.
+- Skip any note with `index: false` in its frontmatter. This is a general-purpose flag that any note type can use.
+
+**Effect:** the index lists each **series hub** and each **standalone meeting**, not every meeting in a series. The hub's summary, decision log and member links make it the entry point, and `search-kb` and the ask agent reach member notes by following the hub's links. Grep still finds everything.
+
+**Trade-off:** a member meeting can't be found from the index alone, only through its hub. This refines ADR-0002 rather than replacing it, and gets its own ADR entry. If hubs plus standalone meetings still push the index past its comfortable size, ADR-0002's upgrade trigger (a local embedding index) applies.
 
 ## 7. Auto Mode
 
@@ -202,21 +220,24 @@ Calendar events organized by the user that ended since the last run
   -> resolve onlineMeeting from joinWebUrl
   -> GET /me/onlineMeetings/{id}/transcripts
   -> GET .../transcripts/{id}/content?$format=text/vtt
-  -> save the file to _inbox/teams_raw/
-  -> record meeting_id in the local state file (skip if already ingested)
+  -> save the file to _transcripts/teams/
+  -> record meeting_id in _transcripts/.state.json (skip if already ingested)
 ```
 
 - `getAllTranscripts` is not used, because it does not support delegated permissions.
 
 ### 7.2 Runtime
 
-- A scheduled task (Windows Task Scheduler, cron or launchd) runs the fetcher, then `claude -p` with `ingest-teams-call` for each new transcript, on a `content/meetings-YYYY-MM-DD` branch. It commits the notes and rebuilds `index.md`.
+- A scheduled task (Windows Task Scheduler, cron or launchd) runs the fetcher, then `claude -p` with `ingest-teams-call` for each new transcript. It commits the notes and rebuilds `index.md`.
+- **One rolling branch.** Every run commits to a single branch, `content/meeting-ingest`, until the user merges it. That avoids a pile of unmerged daily branches. After a merge, the next run creates a fresh branch off `main`. This follows ADR-0003: commit freely on a branch, never merge or push without the user.
+- **Its own worktree.** The job runs in a dedicated git worktree, `.claude/worktrees/meeting-ingest/` (already gitignored), so it never switches branches or touches files in a working tree the user has open. That's the template's existing rule for parallel sessions (`CLAUDE.md` section 8). `_transcripts/` is gitignored, so it isn't copied into the worktree: the job reads it from the main checkout by absolute path.
+- **Pre-approved commands for unattended runs.** No one is there to answer permission prompts. The job passes a narrow allowlist on the command line (`claude -p --allowedTools ...`): Read/Write/Edit, `uv run scripts/build_index.py`, `python scripts/check_links.py`, and `git add`/`git commit`/`git switch`. That list goes in the job script, **not** in the template's shared `.claude/settings.json`, so interactive sessions keep their normal prompts. `git push` and `git merge` are never allowed. The commit hook still blocks commits on `main`.
 - It runs under the user's own OS login and Claude Code sign-in. **No API keys in scripts.**
-- **Skip rules** in a local config: title keywords, attendee lists or meeting types to exclude.
+- **Skip rules** in a local, gitignored config (`_transcripts/skip_rules.yaml`): title keywords, attendee lists or meeting types to exclude.
 
 ### 7.3 Ingestion digest
 
-The digest replaces reviewing every note. Each auto-mode run writes `99_references/meetings/_digests/YYYY-MM-DD.md` (excluded from `index.md`), containing:
+The digest replaces reviewing every note. Each auto-mode run writes `99_references/meetings/_digests/YYYY-MM-DD.md` (excluded from `index.md` by the `_` folder rule in section 6.4), containing:
 
 - Meetings ingested, each with its one-line summary and a link.
 - **All flags for review** from the run (conflicts, supersessions, answered questions), with links.
@@ -233,13 +254,15 @@ The user reads the digest, follows up on the flags that matter, and approves the
 | File contents, prompts and tool output in Claude sessions | Anthropic, via the user's own Claude Code sign-in |
 | YouTube transcript fetch | YouTube, directly (video ID only) |
 | Graph calls (auto mode) | Microsoft 365, under the user's own token |
-| Raw transcripts | Local, gitignored drop folder |
+| Raw transcripts | Local, gitignored `_transcripts/` |
+| Meeting notes (summaries, decisions, excerpts) | Committed in the adopter's KB repo; they reach a remote only when the user pushes |
 | Git push | The user's configured remote, only when the user pushes |
 
 **Adopter guidance (for the README):**
 
 - Confirm that your organization's AI agreement and data policies allow meeting content (which may include customer or regulated data) to be processed by Claude.
-- Raw transcripts stay out of git, but if your KB folder is synced (OneDrive, Dropbox, iCloud), the drop folder syncs too. Make sure that location is approved.
+- Raw transcripts stay out of git, but if your KB folder is synced (OneDrive, Dropbox, iCloud), `_transcripts/` syncs too. Make sure that location is approved.
+- **Meeting notes are committed.** Anyone with access to the remote you push to can read them. In a **team vault**, that includes meetings they weren't in, so 1:1s or confidential calls would reach people who never had access to the recording. Use skip rules, keep sensitive meetings in manual mode, or keep meeting notes in a personal vault.
 - Copying transcript content into notes can outlive your organization's Teams retention policy. Check whether that matters for you.
 - Review `.claude/settings.json` for `env` or `apiKeyHelper` entries when pulling template updates. They can redirect Claude Code to a different key or endpoint.
 
@@ -249,12 +272,23 @@ The user reads the digest, follows up on the flags that matter, and approves the
 |---|---|---|
 | 0 | Fix the `SKILL.md` path typo | `fix/youtube-skill-path` |
 | 1 | KB check + Flags for Review for `ingest-youtube` (section 5) | `chore/conflict-handling` |
-| 2 | Manual-mode Teams ingest: agent, parser skill, `TEMPLATE_meeting.md`, folder README, `.gitignore`, `CLAUDE.md` + ADR | `chore/teams-call-ingest` |
-| 3 | Series grouping: detection, `TEMPLATE_meeting_series.md`, move + relink | `chore/meeting-series` |
+| 2 | Manual-mode Teams ingest: agent, parser skill, `TEMPLATE_meeting.md`, folder README, `_transcripts/` in `.gitignore`, `CLAUDE.md` sections 2 and 4 + ADR | `chore/teams-call-ingest` |
+| 3 | Series grouping: detection, `TEMPLATE_meeting_series.md`, move + relink; `build_index.py` honors `index: false` and skips `_` folders (section 6.4) + ADR refining ADR-0002 | `chore/meeting-series` |
 | 4 | Reconciliation: extend the decompose agent's scope, or add `reconcile-flags` | `chore/reconcile-flags` |
-| 5 | Auto mode: fetcher, device-code auth, scheduler, skip rules, digest, `build_index.py` excludes `_digests/` | `chore/teams-auto-fetch` |
+| 5 | Auto mode: fetcher, device-code auth, scheduler job (worktree, rolling branch, command-line allowlist), skip rules, digest | `chore/teams-auto-fetch` |
+| 6 | Docs: README sections (agent table, opt-in setup, adopter guidance from section 8); `CLAUDE.md` mentions `index: false`; move this spec to `_archive/` | `chore/meeting-docs` |
 
-Phases 1 to 5 are structural changes and each gets an ADR entry.
+Phases 1 to 5 are structural changes and each gets an ADR entry. Once those ADRs and the README capture the decisions, this spec is archived (phase 6), so adopters don't inherit a design doc for a feature that's already built.
+
+## 9a. Fit with the Template's Existing Decisions
+
+| Existing decision | How this design relates |
+|---|---|
+| ADR-0001: Claude Code's own building blocks only | Fits. New agent, skill, templates and scripts. The fetcher declares MSAL as an inline PEP 723 dependency, like `build_index.py` does with PyYAML. |
+| ADR-0002: generated Map of Content | Refined. `index: false` and the `_` folder rule keep meeting volume within the index's design limit (section 6.4). |
+| ADR-0003: branch per unit of work, human gate | Fits. Auto mode commits on one rolling branch in its own worktree and never merges or pushes. |
+| Staging folders (`youtube_videos/`, `research_papers/`) | Fits. `meetings/` is another machine-written staging area, curated later. It differs from `research_papers/` in one deliberate way: raw sources stay out of git. |
+| `_inbox/` scope | Respected. Transcripts live in `_transcripts/`, not `_inbox/`. |
 
 ## 10. Open Questions
 
@@ -268,12 +302,13 @@ Phases 1 to 5 are structural changes and each gets an ADR entry.
 | Question | Decision |
 |---|---|
 | Why not the Copilot recap? | The value is in linking into the KB, catching conflicts with earlier meetings, and living alongside the KB |
-| Where does it live? | Tooling in git as a template; each adopter's KB is local |
+| Where does it live? | Tooling ships in the template; each adopter's KB is their own git repo (local by default); only raw transcripts stay out of git |
 | Synced folder for raw transcripts? | Acceptable for the author; adopters get the guidance in section 8 |
 | KB topic scope | Left to adopters (`CLAUDE.md` section 1) |
 | Too many low-value meetings | Series grouping (section 6) plus skip rules |
 | Review burden | Auto mode only for meetings the user organizes, reviewed through the digest; attended meetings are manual and interactive |
 | Action items | Always parsed into the note; downstream handling is the adopter's choice |
-| Multi-user sharing / dedup / attendee Graph access | Out of scope: local KB per user, organizer-only auto mode |
+| Multi-user sharing / dedup / attendee Graph access | Designed for a personal vault; team-vault caveats documented (section 8); auto mode is organizer-only |
+| Fit with the template (follow-up review) | Transcripts moved to `_transcripts/`; index scaling via `index: false` (section 6.4); unattended runs use a worktree, a rolling branch and a command-line allowlist (section 7.2); spec archived after build (section 9) |
 | Accuracy | The user is responsible; every item cites a timestamp; Claude can check items against the transcript on request |
 | Conflict authority | Flag, don't resolve: decisions and open questions are checked against the KB, and conflicts or existing answers go to the user |
