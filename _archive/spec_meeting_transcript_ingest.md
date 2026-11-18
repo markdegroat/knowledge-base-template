@@ -1,6 +1,6 @@
 # Spec: Meeting Transcript Ingestion
 
-**Status:** Draft, not yet implemented
+**Status:** Implemented 2026-11-18 (see ADR-0004). Archived; section 9 keeps the deferred ideas.
 **Date:** 2026-11-12
 
 ## 1. Goal
