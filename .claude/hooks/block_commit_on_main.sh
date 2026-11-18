@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# PreToolUse hook (Bash tool): block `git commit` while the current branch is main or master.
-# See CLAUDE.md section 8 (Git Workflow) and ADR-0003.
+# PreToolUse hook (Bash tool): guard `git commit`. Two checks:
+#   1. Block while the current branch is main or master (CLAUDE.md section 8, ADR-0003).
+#   2. Block when a raw meeting transcript under _transcripts/ (anything but its README.md)
+#      is staged, or the command itself names one, which catches `git add -f ... && git commit`
+#      (ADR-0004, _transcripts/README.md).
 #
 # Reads the hook JSON from stdin, extracts tool_input.command, and if it contains a
-# `git commit` invocation while the repo is on main or master, explains why on stderr and exits 2
+# `git commit` invocation that fails a check, explains why on stderr and exits 2
 # (which blocks the tool call and feeds the message back to the agent). Otherwise exits 0.
 #
 # Testing: BLOCK_COMMIT_TEST_BRANCH=<name> overrides the detected branch.
@@ -51,7 +54,36 @@ if [ -n "$c_path" ]; then
 fi
 [ -z "$repo_dir" ] && repo_dir="${hook_cwd:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 
-# --- Current branch ---
+# --- Check 2: raw meeting transcripts must never be committed ---
+transcript_hit=""
+# Paths the command names directly, e.g. `git add -f _transcripts/x.vtt && git commit ...`.
+# Glob characters are excluded so a message such as "ignore _transcripts/*" does not match.
+if printf '%s\n' "$cmd" | grep -oE '_transcripts/[^[:space:]"'"'"';|&)*?]+' \
+    | grep -vqx '_transcripts/README\.md'; then
+  transcript_hit="the command names a file under _transcripts/"
+fi
+# Paths already staged in the index.
+if [ -z "$transcript_hit" ] && [ -n "$GIT" ]; then
+  staged="$("$GIT" -C "$repo_dir" diff --cached --name-only -- '_transcripts/' 2>/dev/null \
+    | grep -vx '_transcripts/README\.md')"
+  [ -n "$staged" ] && transcript_hit="staged: $(printf '%s' "$staged" | tr '\n' ' ')"
+fi
+if [ -n "$transcript_hit" ]; then
+  cat >&2 <<MSG
+BLOCKED: raw meeting transcripts in _transcripts/ must never be committed
+($transcript_hit).
+
+Unstage them and commit again:
+  git restore --staged _transcripts/
+  git add _transcripts/README.md   (only if you changed the README)
+
+Transcripts stay local; meeting notes in 99_references/meetings/ refer to them by path.
+See _transcripts/README.md and ADR-0004.
+MSG
+  exit 2
+fi
+
+# --- Check 1: current branch ---
 if [ -n "${BLOCK_COMMIT_TEST_BRANCH:-}" ]; then
   branch="$BLOCK_COMMIT_TEST_BRANCH"
 elif [ -n "$GIT" ]; then

@@ -27,3 +27,7 @@ Thumbs.db
 # Python build artifacts
 __pycache__/
 *.pyc
+
+# Raw meeting transcripts: local only, never committed (see _transcripts/README.md)
+_transcripts/*
+!_transcripts/README.md
