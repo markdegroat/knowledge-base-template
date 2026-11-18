@@ -7,7 +7,7 @@ description: Extract transcripts from YouTube videos. Use when the user asks for
 
 Extract transcripts from YouTube videos using the youtube-transcript-api.
 
-> Source: adapted from the `youtube-transcript` skill in the `intellectronica/agent-skills` repository on GitHub. Run the commands below from this skill's folder, or use the repo-root path `.agents/skills/youtube-transcript/scripts/get_transcript.py`.
+> Source: adapted from the `youtube-transcript` skill in the `intellectronica/agent-skills` repository on GitHub. Run the commands below from this skill's folder, or use the repo-root path `.claude/skills/youtube-transcript/scripts/get_transcript.py`.
 
 ## Usage
 
@@ -40,7 +40,7 @@ uv run scripts/get_transcript.py "VIDEO_URL_OR_ID" --timestamps
 - CRITICAL: YOU MUST NEVER MODIFY THE RETURNED TRANSCRIPT
 - If the transcript is without timestamps, you SHOULD clean it up so that it is arranged by complete paragraphs and the lines don't cut in the middle of sentences.
 - If you were asked to save the transcript to a specific file, save it to the requested file.
-- If no output file was specified, use the YouTube video ID with a `-transcript.txt` suffix.
+- If no output file was specified, do not save the transcript; work from the script's output.
 
 ## Notes
 
