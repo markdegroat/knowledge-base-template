@@ -34,7 +34,8 @@ User's input: $ARGUMENTS
 
 **Title and date held are REQUIRED. Do NOT infer or guess them from the transcript content.**
 - A `.vtt` file carries neither. Use them only if the user stated them, or if the filename clearly contains them (Teams names downloads after the meeting title).
-- Otherwise, **ask the user** for the exact meeting title and the date it was held before writing the note.
+- Otherwise, **ask the user** for the exact meeting title and the date it was held before writing the note. Remind them that the file's download or modified date is usually *not* the date the meeting was held.
+- **Sanity-check the date against the transcript.** Look for date clues in what people said ("this week", "go live August 31st", "next Monday's release", named months or quarters). If they point to a different date than the one given, **ask the user before writing the note**, quoting the clue with its timestamp. Never change the date on your own. If the user confirms the date anyway, write the note and mention the clue in your report.
 
 **Attendees:** list the distinct speaker names from the transcript. Say in your report that people who never spoke won't appear.
 
@@ -79,7 +80,8 @@ Tell the user:
 - How many decisions, action items and open questions were extracted
 - The KB flags raised (conflicts and already-answered questions), if any
 - Which existing notes were referenced
-- Next steps: review the note, rebuild the index (`uv run scripts/build_index.py`), check links, and commit on a branch. The transcript stays in `_transcripts/` and is never committed.
+- Any date clue in the transcript that disagrees with `date_held` (see step 2)
+- Next steps: review the note against the transcript, rebuild the index (`uv run scripts/build_index.py`), check links (`python scripts/check_links.py`; use `python3` where `python` isn't available), and commit the note on a `content/<short-topic>` branch (CLAUDE.md section 8). The transcript stays in `_transcripts/` and is never committed.
 
 ## Constraints
 
