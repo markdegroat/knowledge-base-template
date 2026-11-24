@@ -21,10 +21,12 @@ This is a **knowledge base about [YOUR TOPIC]**: a modular, interconnected vault
     - **`case_studies/`**: Real-world examples demonstrating concepts and patterns.
     - **`research_papers/`**: Academic and industry papers with LLM-generated summaries. Each paper gets its own subfolder holding the raw PDF and a structured summary note. A staging area, like `youtube_videos/`.
     - **`youtube_videos/`**: Distilled notes from YouTube videos on the topic. A staging area.
+    - **`meetings/`**: Distilled notes from meeting transcripts (decisions, action items, open questions, each cited by timestamp). A staging area.
 
 ### Operational Folders
 - **`_inbox/`**: Intake area for raw notes, brainstorms, and rough ideas. The **Iterate Raw Note** agent works exclusively here; content is never moved to the main vault directly from that agent.
 - **`_archive/`**: Deprecated or superseded files.
+- **`_transcripts/`**: Local drop folder for raw meeting transcripts (`.vtt`) waiting for the **Ingest Meeting** agent. Everything in it except its `README.md` is gitignored and **must never be committed**; the commit hook enforces this (see section 8). Never link to files here.
 - **`scripts/`**: Vault tooling: `build_index.py` (builds the Map of Content) and `check_links.py` (verifies wiki-links).
 
 ### Searching the Vault
@@ -42,6 +44,7 @@ Available agents:
 - **Ask the Codebase Questions**: Read-only query agent. Searches the vault and synthesizes answers. Never edits, creates, or deletes files.
 - **Iterate Raw Note** (`Inbox_Agent`): Works only inside `_inbox/`. Refines raw notes and prepares them for integration, but never integrates into core buckets directly; it stops and hands off to the user or another agent.
 - **Ingest YouTube Video**: Takes a YouTube URL or transcript and distills it into a structured reference note in `99_references/youtube_videos/`.
+- **Ingest Meeting**: Takes a meeting transcript (a `.vtt` in `_transcripts/`, or pasted text) and distills it into a note in `99_references/meetings/` with timestamp-cited decisions, action items and open questions, flagging conflicts with existing notes without editing them.
 - **Decompose Inbox to Concepts**: Analyzes inbox notes and identifies concept-worthy material for promotion to `01_concepts/`.
 
 `docs/subagent_frontmatter_reference.md` is a reference catalog of every Claude Code subagent frontmatter field, written as a tiny example agent. It sits outside `.claude/agents/` so Claude Code does not load it; copy it there, renamed, when you write a new agent.
@@ -51,6 +54,7 @@ Skills live in `.claude/skills/`, one folder each:
 - **`relate-notes`**: fills empty `related: []` frontmatter using `search-kb`.
 - **`summarize-notes`**: writes a one-line `summary:` into notes that lack one, so the index carries real summaries.
 - **`youtube-transcript`**: fetches a YouTube transcript (used by the Ingest YouTube Video agent).
+- **`meeting-transcript`**: parses a `.vtt` meeting transcript into `[HH:MM:SS] Speaker: text` lines (used by the Ingest Meeting agent).
 
 ## 3. File & Naming Conventions
 
@@ -136,6 +140,7 @@ Before creating a new file, decide which bucket it belongs in:
 | An end-to-end applied workflow composing concepts, patterns, and techniques | `04_workflows/` |
 | A distilled summary of an academic or industry research paper | `99_references/research_papers/` |
 | A distilled YouTube video | `99_references/youtube_videos/` |
+| A distilled meeting transcript | `99_references/meetings/` |
 | A real-world example | `99_references/case_studies/` |
 | An external article, guide, or other reference material | `99_references/` |
 | A raw idea that is not ready for any of the above | `_inbox/` |
@@ -153,6 +158,7 @@ Before creating a new file, decide which bucket it belongs in:
    - `99_references/case_studies/TEMPLATE_case_study.md`
    - `99_references/research_papers/TEMPLATE_research_paper.md`
    - `99_references/youtube_videos/TEMPLATE_youtube_video.md`
+   - `99_references/meetings/TEMPLATE_meeting.md`
    - `_inbox/TEMPLATE_inbox.md`
 
 ### Content Creation (The "Refinement Loop")
@@ -228,7 +234,7 @@ A pull request is optional; open one when the change should be reviewed (for a s
 
 **Parallel sessions** use separate worktrees (`git worktree add <path> -b <type>/<topic>`) so they do not fight over one index; each worktree carries its own branch.
 
-**Enforcement.** A Claude Code `PreToolUse` hook (`.claude/hooks/block_commit_on_main.sh`, registered in `.claude/settings.json`) blocks any Bash `git commit` while the current branch is `main` or `master` and tells the agent to create a branch first. It does not block `git merge`, `git log`, or other git commands. The hook applies to Claude Code sessions; other tools follow this rule by instruction.
+**Enforcement.** A Claude Code `PreToolUse` hook (`.claude/hooks/block_commit_on_main.sh`, registered in `.claude/settings.json`) blocks any Bash `git commit` while the current branch is `main` or `master` and tells the agent to create a branch first. It does not block `git merge`, `git log`, or other git commands. The same hook also blocks a `git commit` when a file under `_transcripts/` (other than its `README.md`) is staged or named in the command, and tells the agent to unstage it (ADR-0004). The hook applies to Claude Code sessions; other tools follow these rules by instruction.
 
 ### Commit Messages
 

@@ -12,9 +12,10 @@ A starting point for a personal or team knowledge base kept as plain Markdown in
 | `02_patterns/` | Repeatable high-level strategies |
 | `03_techniques/` | Tactical methods, checklists, copy-pasteable templates |
 | `04_workflows/` | End-to-end processes that compose the above |
-| `99_references/` | External material: `case_studies/`, `research_papers/`, `youtube_videos/` |
+| `99_references/` | External material: `case_studies/`, `research_papers/`, `youtube_videos/`, `meetings/` |
 | `_inbox/` | Raw, unrefined notes waiting to be worked on |
 | `_archive/` | Superseded notes, kept for history |
+| `_transcripts/` | Raw meeting transcripts waiting to be ingested; local only, never committed |
 
 Each bucket has a `TEMPLATE_*.md` to copy when you add a note.
 
@@ -34,14 +35,16 @@ Each bucket has a `TEMPLATE_*.md` to copy when you add a note.
 | Iterate Raw Note | agent | Refines a raw note in `_inbox/` with you; never writes outside it |
 | Decompose Inbox to Concepts | agent | Proposes which inbox ideas become concept notes, then writes them once you approve |
 | Ingest YouTube Video | agent | Turns a video into a reference note in `99_references/youtube_videos/` |
+| Ingest Meeting | agent | Turns a meeting transcript into a note in `99_references/meetings/`: decisions, action items, open questions, and flags where they conflict with existing notes |
 | `search-kb` | skill | Finds notes by meaning from `index.md`, returns a list of links |
 | `relate-notes` | skill | Fills empty `related:` fields using `search-kb` |
 | `summarize-notes` | skill | Writes missing `summary:` lines so the index stays useful |
 | `youtube-transcript` | skill | Fetches a video transcript (used by the ingest agent) |
+| `meeting-transcript` | skill | Parses a `.vtt` meeting transcript (used by the meeting ingest agent) |
 
 **Instructions and decisions.** `CLAUDE.md` carries the rules (naming, frontmatter, links, tags, where things go, the git workflow). `ADR.md` logs the structural decisions and why they were made; it is append-only, newest first.
 
-**Git workflow.** Every unit of work goes on a short-lived branch (`content/...`, `chore/...`, `fix/...`); agents commit freely there and ask before merging to `main` or pushing. In Claude Code, a hook (`.claude/hooks/block_commit_on_main.sh`) blocks commits made directly on `main`.
+**Git workflow.** Every unit of work goes on a short-lived branch (`content/...`, `chore/...`, `fix/...`); agents commit freely there and ask before merging to `main` or pushing. In Claude Code, a hook (`.claude/hooks/block_commit_on_main.sh`) blocks commits made directly on `main`, and commits that would include a raw meeting transcript.
 
 ## Getting started
 
@@ -73,7 +76,15 @@ Open the folder and start `claude`. `CLAUDE.md` is loaded automatically, and the
 - Capture an idea: "Use the iterate-raw-note agent to help me shape this idea: ..."
 - Promote inbox material: "Run decompose-inbox-to-concepts."
 - Ingest a video: "Use ingest-youtube on https://www.youtube.com/watch?v=..." Fetching the transcript is best-effort: YouTube sometimes blocks it. If it fails, paste the transcript into the chat and the agent works from that.
+- Ingest a meeting: download the transcript as `.vtt` (Teams: open the recording, then Transcript, then Download), save it to `_transcripts/`, then "Use ingest-meeting on `_transcripts/<file>.vtt`". Pasting the transcript into the chat works too. The agent asks for the meeting title and date if the filename doesn't make them clear. The transcript stays on your machine; the note is what you commit.
 - Upkeep: `/summarize-notes`, then `/relate-notes`, then rebuild the index.
+
+### Meeting transcripts and privacy
+
+- **The transcript is never committed.** Everything in `_transcripts/` except its README is gitignored, and the hook blocks commits that include it. Only the meeting note (summary, decisions, short excerpts) is committed.
+- **Session logs.** Claude Code keeps what it reads in a session, including a full transcript, in its local session logs (`~/.claude/projects/`). They are deleted after about 30 days by default; the `cleanupPeriodDays` setting changes that. This applies to YouTube ingestion too.
+- **Model provider.** Transcript content is sent to Anthropic during ingestion. Check that your organization's agreement covers meeting content.
+- **Your copy's remote.** If you push your copy to GitHub, check its visibility: a repo made from a public template can still be public.
 
 `docs/subagent_frontmatter_reference.md` is a commented reference of every subagent frontmatter field. It lives outside `.claude/agents/` so it does not load as an agent; copy it there, renamed, when you write your own.
 

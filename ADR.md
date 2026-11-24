@@ -12,7 +12,7 @@ records *why* a decision was made, not just *what* changed, so future agentic se
   `Status: Superseded by ADR-XXXX`.
 - Keep each entry to **Context** (the why), **Decision** (what was chosen), and
   **Consequences** (what it costs, what it enables, how to reverse it).
-- The three entries below are seed decisions that come with the template. Keep them if
+- ADR-0001 to ADR-0003 are seed decisions that come with the template. Keep them if
   they hold for your vault; supersede them with new entries if you change course.
 
 **Template for a new entry** (copy it above the newest entry):
@@ -27,6 +27,39 @@ records *why* a decision was made, not just *what* changed, so future agentic se
 
 **Consequences.** What this costs, what it enables, and how to reverse it.
 ```
+
+---
+
+## ADR-0004 - Meeting transcript ingestion, with raw transcripts kept local
+**Date:** 2026-11-18  **Status:** Accepted
+
+**Context.** Meetings are where many decisions are made and much "why we do it this way"
+knowledge is explained, then lost. The vault already ingests YouTube videos through an
+agent, a transcript skill, a staging folder and a template. Meeting transcripts differ in one
+important way: they are internal and may contain sensitive information, so unlike research
+PDFs (which are public and committed) the raw file must not enter git history. Fetching
+transcripts automatically (Microsoft Graph) would need sign-in, app registration and a
+scheduler, which no other part of the template requires.
+
+**Decision.** Add manual, one-meeting-at-a-time ingestion that mirrors the YouTube feature:
+an `ingest-meeting` agent, a `meeting-transcript` skill (a standard-library `.vtt` parser),
+`99_references/meetings/` with a README and `TEMPLATE_meeting.md`. Every decision, action item
+and open question in a meeting note carries a `[HH:MM:SS]` citation, and the agent flags (never
+edits) existing notes that a decision contradicts or that already answer an open question. Raw
+transcripts live in a top-level `_transcripts/` folder whose contents are gitignored (only its
+README is tracked). Notes refer to them by repo-relative path. The existing `PreToolUse` hook
+gains a second check that blocks `git commit` when a file under `_transcripts/` is staged or
+named in the command. Input at launch is `.vtt` (Teams, Zoom, Webex) or pasted text.
+
+**Consequences.** No new configuration: adopters get the feature with no setup step.
+Transcripts are kept after ingestion so citations can be checked, and pruning is up to the
+user. If the vault sits in a synced folder (OneDrive, Dropbox, iCloud), `_transcripts/` syncs
+with it. Manual commits are guarded only by `.gitignore`. Deferred: automatic fetching,
+meeting series with a running decision log, `.docx` input, an `index: false` flag if meeting
+volume strains ADR-0002's index, and a reconciliation agent for open flags (the full design is
+in `_archive/spec_meeting_transcript_ingest.md`). To reverse: delete the agent, skill,
+`99_references/meetings/` and `_transcripts/`, remove the hook's second check and the
+`.gitignore` lines, and add a new ADR.
 
 ---
 

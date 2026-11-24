@@ -17,7 +17,8 @@ status: generated
 
 ## 99_references
 
+- [[99_references/meetings/README]] - **Meeting Notes**: Folder guide for meeting notes: one auto-generated note per meeting transcript, with cited decisions, action items, open questions and KB conflict flags.  ·  _status: draft_  ·  _tags: reference, fundamentals, knowledge-management_
 - [[99_references/research_papers/README]] - **Research Paper Digests**: Folder guide for the research-papers staging area: one subfolder per paper with the raw PDF and an LLM-generated summary note.  ·  _status: draft_  ·  _tags: reference, fundamentals, knowledge-management_
 - [[99_references/youtube_videos/README]] - **YouTube Video Digests**: Folder guide for the YouTube digests staging area: one auto-generated note per video, later reviewed and decomposed into the core buckets.  ·  _status: draft_  ·  _tags: reference, fundamentals, knowledge-management_
 
-<!-- 4 notes indexed -->
+<!-- 5 notes indexed -->
